@@ -57,6 +57,17 @@ una richiesta lunga al server: il server la tiene aperta fino a 50 secondi e ris
 Su alcuni telefoni (Xiaomi, Huawei, Samsung) conviene anche permettere l'"avvio automatico"
 dell'app e bloccarla tra le app recenti, altrimenti il sistema la chiude.
 
+### Aggiornamenti
+
+L'app controlla da sola le Releases di questo repository ogni 6 ore e, se c'è una versione
+nuova, manda la notifica "Aggiornamento disponibile": toccandola la scarica e la installa.
+C'è anche il pulsante **Controlla aggiornamenti**. La prima volta Android chiede di
+consentire a "Sempre connessi" di installare app. Su Android 12 e successivi, dopo il primo
+aggiornamento fatto dall'app, quelli seguenti possono non chiedere più conferma.
+
+Se il repository è privato serve un token GitHub di sola lettura (campo "Token GitHub"
+nelle impostazioni dell'app); se è pubblico non serve nulla.
+
 ### Firma degli aggiornamenti
 
 Senza configurazione ogni compilazione usa una chiave di debug diversa, e per installare
@@ -64,10 +75,23 @@ una versione nuova bisogna prima disinstallare quella vecchia. Per evitarlo, cre
 chiave una volta sola e mettila nei *secrets* del repository
 (Settings → Secrets and variables → Actions):
 
+Con Java (`keytool`):
+
 ```bash
 keytool -genkeypair -v -keystore firma.jks -alias sempreconnessi -keyalg RSA -keysize 2048 \
         -validity 10000 -dname "CN=Sempre connessi"
 base64 -w0 firma.jks   # copia l'output
+```
+
+Senza Java, con `openssl` (c'è su Linux e in Git per Windows / Git Bash):
+
+```bash
+openssl req -x509 -newkey rsa:2048 -nodes -days 10000 -subj "/CN=Sempre connessi" \
+        -keyout chiave.pem -out certificato.pem
+openssl pkcs12 -export -in certificato.pem -inkey chiave.pem -name sempreconnessi \
+        -out firma.jks -passout pass:LA-TUA-PASSWORD
+base64 -w0 firma.jks   # copia l'output
+rm chiave.pem          # la chiave resta solo dentro firma.jks
 ```
 
 - `FIRMA_KEYSTORE_B64` = output di `base64`
