@@ -1,0 +1,57 @@
+name: Compila APK
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    env:
+      FIRMA_KEYSTORE_B64: ${{ secrets.FIRMA_KEYSTORE_B64 }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # Chiave di firma fissa (facoltativa): senza, ogni compilazione usa una
+      # chiave di debug diversa e per aggiornare l'app bisogna disinstallarla.
+      - name: Prepara la chiave di firma
+        if: env.FIRMA_KEYSTORE_B64 != ''
+        run: |
+          echo "$FIRMA_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/firma.jks"
+          echo "FIRMA_KEYSTORE_FILE=$RUNNER_TEMP/firma.jks" >> "$GITHUB_ENV"
+
+      - name: Compila
+        env:
+          FIRMA_PASSWORD: ${{ secrets.FIRMA_PASSWORD }}
+        run: ./gradlew --no-daemon assembleRelease
+
+      - name: Rinomina
+        run: cp app/build/outputs/apk/release/app-release.apk "sempre-connessi-${GITHUB_RUN_NUMBER}.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sempre-connessi-apk
+          path: sempre-connessi-*.apk
+
+      # Su main pubblica anche una "release": l'APK si scarica dal telefono
+      # dalla pagina Releases del repository.
+      - name: Pubblica release
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v1.0.${GITHUB_RUN_NUMBER}" "sempre-connessi-${GITHUB_RUN_NUMBER}.apk" \
+            --title "Sempre connessi 1.0.${GITHUB_RUN_NUMBER}" \
+            --notes "APK compilato da ${GITHUB_SHA::7}. Scaricalo dal telefono e installalo."
+
+permissions:
+  contents: write

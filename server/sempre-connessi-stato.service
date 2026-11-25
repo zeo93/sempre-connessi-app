@@ -1,0 +1,21 @@
+[Unit]
+Description=sempre-connessi: stato della linea per l'app Android (porta 8090)
+After=network-online.target sempre-connessi.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/local/lib/sempre-connessi/sempre_connessi_stato.py
+Restart=always
+RestartSec=5
+# gira come root solo per il ping con "mark" sulla fibra (CAP_NET_ADMIN);
+# per il resto il sistema e' in sola lettura
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+StateDirectory=sempre-connessi-stato
+
+[Install]
+WantedBy=multi-user.target
