@@ -33,5 +33,18 @@ class Impostazioni(ctx: Context) {
         get() = p.getString("ultimo_stato_dal", null)
         set(v) = p.edit().putString("ultimo_stato_dal", v).apply()
 
+    /** Solo se il repository GitHub e' privato. */
+    var tokenGithub: String
+        get() = p.getString("token_github", "")!!
+        set(v) = p.edit().putString("token_github", v.trim()).apply()
+
+    var ultimoControlloAggiornamenti: Long
+        get() = p.getLong("ultimo_controllo_agg", 0L)
+        set(v) = p.edit().putLong("ultimo_controllo_agg", v).apply()
+
+    var versioneGiaAvvisata: Int
+        get() = p.getInt("versione_avvisata", 0)
+        set(v) = p.edit().putInt("versione_avvisata", v).apply()
+
     val porta: Int get() = host.substringAfter(':', "8090").toIntOrNull() ?: 8090
 }

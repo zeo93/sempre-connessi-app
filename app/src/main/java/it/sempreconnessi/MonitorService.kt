@@ -84,6 +84,7 @@ class MonitorService : Service() {
             thread?.interrupt()  // sveglia: rifai subito la richiesta
         }
         programmaSveglia()
+        Thread({ Aggiornamenti.controllaInBackground(this) }, "aggiornamenti").start()
         return START_STICKY
     }
 

@@ -78,6 +78,60 @@ class MainActivity : Activity() {
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
         }
         MonitorService.avvia(this)
+        if (intent?.getBooleanExtra(Aggiornamenti.EXTRA_AGGIORNA, false) == true) aggiorna(true)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        if (intent.getBooleanExtra(Aggiornamenti.EXTRA_AGGIORNA, false)) aggiorna(true)
+    }
+
+    /** Controlla su GitHub e, se c'e' una versione nuova, la installa (se [installa]) o lo chiede. */
+    private fun aggiorna(installa: Boolean) {
+        Toast.makeText(this, "Controllo aggiornamenti...", Toast.LENGTH_SHORT).show()
+        thread(name = "aggiornamento") {
+            try {
+                val v = Aggiornamenti.ultima(this)
+                val mia = Aggiornamenti.versioneInstallata(this)
+                if (v == null || v.numero <= mia) {
+                    handler.post { Toast.makeText(this, "Hai già l'ultima versione", Toast.LENGTH_SHORT).show() }
+                    return@thread
+                }
+                handler.post {
+                    if (!Aggiornamenti.puoInstallare(this)) {
+                        Toast.makeText(this, "Consenti a Sempre connessi di installare app, poi riprova",
+                            Toast.LENGTH_LONG).show()
+                        startActivity(Aggiornamenti.intentPermessoInstallazione(this))
+                    } else if (installa) {
+                        scaricaEInstalla(v)
+                    } else {
+                        android.app.AlertDialog.Builder(this)
+                            .setTitle("Versione ${v.nome.removePrefix("v")} disponibile")
+                            .setMessage(v.note.ifBlank { "Vuoi installarla?" })
+                            .setPositiveButton("Installa") { _, _ -> scaricaEInstalla(v) }
+                            .setNegativeButton("Più tardi", null)
+                            .show()
+                    }
+                }
+            } catch (e: Exception) {
+                handler.post {
+                    Toast.makeText(this, "Aggiornamento non riuscito: ${e.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    private fun scaricaEInstalla(v: Versione) {
+        Toast.makeText(this, "Scarico la versione ${v.nome.removePrefix("v")}...", Toast.LENGTH_SHORT).show()
+        thread(name = "download") {
+            try {
+                Aggiornamenti.installa(this, v)
+            } catch (e: Exception) {
+                handler.post {
+                    Toast.makeText(this, "Download non riuscito: ${e.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
     }
 
     override fun onResume() {
@@ -137,6 +191,7 @@ class MainActivity : Activity() {
         col.addView(intestazione("Azioni"))
         col.addView(bottone("Apri impostazioni hotspot") { startActivity(Notifiche.intentHotspot(this)) })
         col.addView(bottone("Togli il risparmio batteria per l'app") { chiediBatteria() })
+        col.addView(bottone("Controlla aggiornamenti") { aggiorna(false) })
         col.addView(bottone("Prova notifica") {
             Notifiche.linea(this, "Prova", "Così arriva l'avviso di fibra giù.", allarme = true, conHotspot = true)
         })
@@ -156,6 +211,13 @@ class MainActivity : Activity() {
             isSingleLine = true
         }
         col.addView(campoToken)
+        col.addView(etichetta("Token GitHub (solo se il repository è privato)"))
+        val campoTokenGithub = EditText(this).apply {
+            setText(imp.tokenGithub)
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            isSingleLine = true
+        }
+        col.addView(campoTokenGithub)
         val avvisa = CheckBox(this).apply {
             text = "Avvisami se il server non risponde (solo sul Wi-Fi)"
             isChecked = imp.avvisaIrraggiungibile
@@ -165,13 +227,15 @@ class MainActivity : Activity() {
             imp.host = campoHost.text.toString()
             imp.token = campoToken.text.toString()
             imp.avvisaIrraggiungibile = avvisa.isChecked
+            imp.tokenGithub = campoTokenGithub.text.toString()
             Toast.makeText(this, "Salvato", Toast.LENGTH_SHORT).show()
             MonitorService.avvia(this)
         })
 
         col.addView(TextView(this).apply {
             text = "Per MacroDroid: trigger \"Intent ricevuto\", azione ${MonitorService.AZIONE_STATO}, " +
-                "extra \"stato\" = NORMAL, DOWN, BACKUP o FERMO."
+                "extra \"stato\" = NORMAL, DOWN, BACKUP o FERMO." +
+                "\nVersione app: ${Aggiornamenti.versioneInstallata(this@MainActivity)} · aggiornamenti da github.com/${Aggiornamenti.REPOSITORY}"
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
             setPadding(0, dp(16), 0, 0)
             alpha = 0.7f
